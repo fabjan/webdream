@@ -58,6 +58,15 @@ type GroqResponse struct {
 	Choices []struct {
 		Message GroqChatMessage `json:"message"`
 	} `json:"choices"`
+	Usage struct {
+		QueueTime        float64 `json:"queue_time"`
+		PromptTokens     int     `json:"prompt_tokens"`
+		PromptTime       float64 `json:"prompt_time"`
+		CompletionTokens int     `json:"completion_tokens"`
+		CompletionTime   float64 `json:"completion_time"`
+		TotalTokens      int     `json:"total_tokens"`
+		TotalTime        float64 `json:"total_time"`
+	} `json:"usage"`
 }
 
 type WebDreamResponse struct {
@@ -120,12 +129,30 @@ func dreamHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	slog.Info("Received response",
+		"path", reqPath,
+		"choices", len(respData.Choices),
+		"promptTokens", respData.Usage.PromptTokens,
+		"completionTokens", respData.Usage.CompletionTokens,
+		"totalTokens", respData.Usage.TotalTokens,
+		"totalTime", respData.Usage.TotalTime,
+	)
+
+	if len(respData.Choices) == 0 {
+		slog.Error("No choices in response")
+		http.NotFound(w, r)
+		return
+	}
+
 	// parse the wrapped JSON inside
 	firstChoice := respData.Choices[0].Message.Content
 	var webDreamResp WebDreamResponse
 	err = json.Unmarshal([]byte(firstChoice), &webDreamResp)
 	if err != nil {
-		slog.Error("Failed to decode inner response", "err", err)
+		slog.Error("Failed to decode inner response",
+			"err", err,
+			"firstChoice", firstChoice,
+		)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
