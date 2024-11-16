@@ -11,6 +11,16 @@
         <ul>
             <li><a href="about_us.html">About Us</a></li>
             <li><a href="contact.html">Contact</a></li>
+            <li><a href="webshop/catalog/bikes+clowns">Webshop Catalog</a></li>
         </ul>
+
+        <h2>API stats</h2>
+        <p>
+            Requests Last Minute: {{ .RequestsLastMinute }}<br />
+            Requests Last Day: {{ .RequestsLastDay }}<br />
+            Tokens Last Minute: {{ .TokensLastMinute }}<br />
+            Tokens Last Day: {{ .TokensLastDay }}<br />
+        </p>
+        <p>See details on the <a href="metrics">dashboard</a>.</p>
     </body>
 </html>

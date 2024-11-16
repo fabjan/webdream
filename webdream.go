@@ -1,13 +1,32 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"log/slog"
 	"net/http"
 	"os"
 	"text/template"
+
+	"github.com/fabjan/webdream/groq"
+	"github.com/fabjan/webdream/metrics"
 )
+
+func checkRateLimit() bool {
+	// half-arbitrary combination of Groq limits
+	if 30 <= metrics.CountRequestsInLastMinute() {
+		return true
+	}
+	if 14400 <= metrics.CountRequestsInLastDay() {
+		return true
+	}
+	if 5000 <= metrics.CountTokensInLastMinute() {
+		return true
+	}
+	if 500000 <= metrics.CountTokensInLastDay() {
+		return true
+	}
+
+	return false
+}
 
 func main() {
 	addr := os.Getenv("ADDR")
@@ -19,6 +38,7 @@ func main() {
 		}
 	}
 
+	http.Handle("/metrics", metrics.Handler())
 	http.HandleFunc("/", rootHandler)
 
 	slog.Info("Starting server", "addr", addr)
@@ -41,132 +61,45 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	t.Execute(w, nil)
-}
-
-type GroqChatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-type GroqRequest struct {
-	Model    string            `json:"model"`
-	Messages []GroqChatMessage `json:"messages"`
-}
-
-type GroqResponse struct {
-	Choices []struct {
-		Message GroqChatMessage `json:"message"`
-	} `json:"choices"`
-	Usage struct {
-		QueueTime        float64 `json:"queue_time"`
-		PromptTokens     int     `json:"prompt_tokens"`
-		PromptTime       float64 `json:"prompt_time"`
-		CompletionTokens int     `json:"completion_tokens"`
-		CompletionTime   float64 `json:"completion_time"`
-		TotalTokens      int     `json:"total_tokens"`
-		TotalTime        float64 `json:"total_time"`
-	} `json:"usage"`
-}
-
-type WebDreamResponse struct {
-	Headers map[string]string `json:"headers"`
-	Status  int               `json:"status"`
-	Body    string            `json:"body"`
+	stats := map[string]int{
+		"RequestsLastMinute": metrics.CountRequestsInLastMinute(),
+		"RequestsLastDay":    metrics.CountRequestsInLastDay(),
+		"TokensLastMinute":   metrics.CountTokensInLastMinute(),
+		"TokensLastDay":      metrics.CountTokensInLastDay(),
+	}
+	err = t.Execute(w, stats)
+	if err != nil {
+		slog.Error("Failed to execute template", "err", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 func dreamHandler(w http.ResponseWriter, r *http.Request) {
+
+	if checkRateLimit() {
+		http.Error(w, "Rate limited", http.StatusTooManyRequests)
+		return
+	}
+
 	reqPath := r.URL.Path
-	apiKey := os.Getenv("GROQ_API_KEY")
-
-	reqData := GroqRequest{
-		Model: "llama3-8b-8192",
-		Messages: []GroqChatMessage{
-			{
-				Role:    "system",
-				Content: "You are the backend of a web service. You will receive each request as a JSON object with a 'headers', 'path', and 'body' field. You should respond with a JSON object the service can parse to respond. Your JSON has the properties 'headers', 'status', and 'body'. Responses have a handful of paragraphs. You can render links, but only to the same origin.",
-			},
-			{
-				Role: "user",
-				Content: `{
-					"headers": {
-						"Content-Type": "text/html"
-					},
-					"path": "` + reqPath + `",
-				}`,
-			},
-		},
-	}
-
-	bodyBytes := new(bytes.Buffer)
-	json.NewEncoder(bodyBytes).Encode(reqData)
-
-	chatCompletionsURL := "https://api.groq.com/openai/v1/chat/completions"
-	req, err := http.NewRequest("POST", chatCompletionsURL, bodyBytes)
+	result, err := groq.Dream(reqPath)
 	if err != nil {
-		slog.Error("Failed to create request", "err", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		slog.Error("Failed to make request", "err", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer resp.Body.Close()
-
-	// read the response body
-	var respData GroqResponse
-	err = json.NewDecoder(resp.Body).Decode(&respData)
-	if err != nil {
-		slog.Error("Failed to decode response", "err", err)
+		slog.Error("Cannot dream", "err", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	slog.Info("Received response",
-		"path", reqPath,
-		"choices", len(respData.Choices),
-		"promptTokens", respData.Usage.PromptTokens,
-		"completionTokens", respData.Usage.CompletionTokens,
-		"totalTokens", respData.Usage.TotalTokens,
-		"totalTime", respData.Usage.TotalTime,
-	)
-
-	if len(respData.Choices) == 0 {
-		slog.Error("No choices in response")
-		http.NotFound(w, r)
-		return
-	}
-
-	// parse the wrapped JSON inside
-	firstChoice := respData.Choices[0].Message.Content
-	var webDreamResp WebDreamResponse
-	err = json.Unmarshal([]byte(firstChoice), &webDreamResp)
-	if err != nil {
-		slog.Error("Failed to decode inner response",
-			"err", err,
-			"firstChoice", firstChoice,
-		)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	for k, v := range webDreamResp.Headers {
+	for k, v := range result.Headers {
 		w.Header().Set(k, v)
 	}
-	w.WriteHeader(webDreamResp.Status)
-	_, err = w.Write([]byte(webDreamResp.Body))
+	w.WriteHeader(result.Status)
+	_, err = w.Write([]byte(result.Body))
 	if err != nil {
 		slog.Error("Failed to write response", "err", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	slog.Info("Responded to request", "path", reqPath)
+	slog.Info("Request handled", "path", reqPath, "status", result.Status)
 }
