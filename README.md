@@ -31,6 +31,8 @@ Browse to `http://localhost:3000/` to see the site.
 ## Future Work
 
 - Support other LLM APIs
+- Containerize
+- CSS?
 
 ## License
 
