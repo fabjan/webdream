@@ -26,9 +26,14 @@ type GroqChatMessage struct {
 	Content string `json:"content"`
 }
 
+type GroqResponseFormat struct {
+	Type string `json:"type"`
+}
+
 type GroqRequest struct {
-	Model    string            `json:"model"`
-	Messages []GroqChatMessage `json:"messages"`
+	Model          string             `json:"model"`
+	Messages       []GroqChatMessage  `json:"messages"`
+	ResponseFormat GroqResponseFormat `json:"response_format"`
 }
 
 type GroqResponse struct {
@@ -46,10 +51,21 @@ type GroqResponse struct {
 	} `json:"usage"`
 }
 
+type GroqError struct {
+	Error struct {
+		Message string `json:"message"`
+		Type    string `json:"type"`
+		Code    string `json:"code"`
+	}
+}
+
 func Dream(reqPath string) (*dream.Response, error) {
 
 	reqData := GroqRequest{
 		Model: "llama3-8b-8192",
+		ResponseFormat: GroqResponseFormat{
+			Type: "json_object",
+		},
 		Messages: []GroqChatMessage{
 			{
 				Role:    "system",
@@ -87,6 +103,18 @@ func Dream(reqPath string) (*dream.Response, error) {
 	if resp.StatusCode == http.StatusUnauthorized {
 		panic("Unauthorized, fix your API key!")
 	}
+	if resp.StatusCode != http.StatusOK {
+		var respErr GroqError
+		err = json.NewDecoder(resp.Body).Decode(&respErr)
+		if err == nil {
+			code := respErr.Error.Code
+			message := respErr.Error.Message
+			typ := respErr.Error.Type
+			slog.Error("Groq error", "code", code, "message", message, "type", typ)
+			return nil, fmt.Errorf("Groq error: %s %s", code, typ)
+		}
+		return nil, fmt.Errorf("Unexpected status in API response: %d", resp.StatusCode)
+	}
 
 	// read the response body
 	var respData GroqResponse
@@ -111,16 +139,19 @@ func Dream(reqPath string) (*dream.Response, error) {
 	}
 
 	// parse the wrapped JSON inside
-	firstChoice := respData.Choices[0].Message.Content
 	var result dream.Response
-	err = json.Unmarshal([]byte(firstChoice), &result)
+	for _, choice := range respData.Choices {
+		err = json.Unmarshal([]byte(choice.Message.Content), &result)
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
-		slog.Error("Failed to decode inner response",
+		slog.Error("Failed to decode LLM generated JSON",
 			"err", err,
-			"firstChoice", firstChoice,
+			"choices", len(respData.Choices),
 		)
-
-		return nil, fmt.Errorf("Failed to decode inner response: %w", err)
+		return nil, fmt.Errorf("Failed to decode LLM generated JSON: %w", err)
 	}
 
 	return &result, nil
