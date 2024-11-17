@@ -43,12 +43,12 @@ type CacheItem struct {
 	Response *Response
 }
 
-var respCacheMu sync.Mutex
+var respCacheMu sync.RWMutex
 var respCache = make(map[string]CacheItem)
 
 func GetCachedResponse(key string) (*Response, bool) {
-	respCacheMu.Lock()
-	defer respCacheMu.Unlock()
+	respCacheMu.RLock()
+	defer respCacheMu.RUnlock()
 	if item, ok := respCache[key]; ok {
 		return item.Response, true
 	}
