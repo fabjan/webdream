@@ -1,4 +1,4 @@
-FROM golang:1.23 as builder
+FROM golang:1.23 AS builder
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ COPY webdream.go ./
 
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o webdream .
 
-FROM alpine:latest
+FROM alpine:latest AS runtime
 RUN apk --no-cache add ca-certificates
 
 WORKDIR /root/
