@@ -24,8 +24,8 @@ Browse to `http://localhost:3000/` to see the site.
 
 | Variable     | Description                                      |
 |:-------------|:-------------------------------------------------|
-| PORT         | <port> number to serve HTTP form on any interface
-| ADDR         | <ip>:<port> to serve HTTP from (supercedes PORT)
+| PORT         | \<port> number to serve HTTP form on any interface
+| ADDR         | \<ip>:\<port> to serve HTTP from (overwrites PORT)
 | GROQ_API_KEY | Your API key for Groq
 
 ## Future Work
