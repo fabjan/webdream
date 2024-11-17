@@ -112,7 +112,7 @@ func dreamHandler(w http.ResponseWriter, r *http.Request) {
 	if result == nil {
 		if err != nil {
 			slog.Error("Cannot dream", "err", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.NotFound(w, r)
 			return
 		}
 	}
