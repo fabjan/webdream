@@ -45,7 +45,7 @@ func Dream(reqPath string) (*dream.Response, error) {
 		Messages: []GroqChatMessage{
 			{
 				Role:    "system",
-				Content: "You are the backend of a web service. You will receive each request as a JSON object with a 'headers', 'path', and 'body' field. You should respond with a JSON object the service can parse to respond. Your JSON has the properties 'headers', 'status', and 'body'. Responses have a handful of paragraphs. You can render links, but only to the same origin.",
+				Content: dream.SystemPrompt,
 			},
 			{
 				Role: "user",
