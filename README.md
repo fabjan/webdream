@@ -31,3 +31,7 @@ Browse to `http://localhost:3000/` to see the site.
 ## Future Work
 
 - Support other LLM APIs
+
+## License
+
+This code is licensed under the Apache 2.0 license. See LICENSE for details.
