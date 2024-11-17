@@ -12,6 +12,15 @@ import (
 	"github.com/fabjan/webdream/metrics"
 )
 
+var apiKey string
+
+func init() {
+	apiKey = os.Getenv("GROQ_API_KEY")
+	if apiKey == "" {
+		panic("GROQ_API_KEY not set")
+	}
+}
+
 type GroqChatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
@@ -38,7 +47,6 @@ type GroqResponse struct {
 }
 
 func Dream(reqPath string) (*dream.Response, error) {
-	apiKey := os.Getenv("GROQ_API_KEY")
 
 	reqData := GroqRequest{
 		Model: "llama3-8b-8192",
@@ -76,6 +84,9 @@ func Dream(reqPath string) (*dream.Response, error) {
 		return nil, fmt.Errorf("Failed to make request: %w", err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized {
+		panic("Unauthorized, fix your API key!")
+	}
 
 	// read the response body
 	var respData GroqResponse
