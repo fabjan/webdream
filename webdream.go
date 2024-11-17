@@ -98,6 +98,9 @@ func dreamHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	reqPath := r.URL.Path
+	if r.URL.RawFragment != "" {
+		reqPath += "#" + r.URL.EscapedFragment()
+	}
 
 	result, cacheHit := dream.GetCachedResponse(reqPath)
 	var err error
