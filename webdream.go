@@ -6,6 +6,7 @@ import (
 	"os"
 	"text/template"
 
+	"github.com/fabjan/webdream/dream"
 	"github.com/fabjan/webdream/groq"
 	"github.com/fabjan/webdream/metrics"
 )
@@ -83,11 +84,23 @@ func dreamHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	reqPath := r.URL.Path
-	result, err := groq.Dream(reqPath)
-	if err != nil {
-		slog.Error("Cannot dream", "err", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+
+	result, cacheHit := dream.GetCachedResponse(reqPath)
+	var err error
+
+	if !cacheHit {
+		result, err = groq.Dream(reqPath)
+		if result != nil {
+			dream.CacheResponse(reqPath, result)
+		}
+	}
+
+	if result == nil {
+		if err != nil {
+			slog.Error("Cannot dream", "err", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -99,5 +112,5 @@ func dreamHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.Info("Request handled", "path", reqPath, "status", result.Status)
+	slog.Info("Request handled", "path", reqPath, "status", result.Status, "cacheHit", cacheHit)
 }
