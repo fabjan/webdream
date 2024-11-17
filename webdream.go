@@ -90,9 +90,7 @@ func dreamHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for k, v := range result.Headers {
-		w.Header().Set(k, v)
-	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(result.Status)
 	_, err = w.Write([]byte(result.Body))
 	if err != nil {

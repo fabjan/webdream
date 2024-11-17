@@ -10,12 +10,11 @@ Responses have a handful of paragraphs, to save on traffic.
 
 All pages should include links, but only to the same origin.
 
+Don't include any styles or funny business that breaks your JSON string.
+
 The JSON schema is as follows:
 
 {
-  "headers": {
-    "Content-Type": "string (always text/html)"
-  },
   "status": "number (HTTP status code)",
-  "body": "string (HTML)"
+  "body": "string (utf8 HTML)"
 }

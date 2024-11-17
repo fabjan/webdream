@@ -8,7 +8,7 @@ import (
 var SystemPrompt string
 
 type Response struct {
-	Headers map[string]string `json:"headers"`
-	Status  int               `json:"status"`
-	Body    string            `json:"body"`
+	Status int    `json:"status"`
+	Body   string `json:"body"`
+}
 }
