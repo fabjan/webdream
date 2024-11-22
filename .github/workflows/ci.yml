@@ -17,7 +17,6 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: read
       # for pushing image
       packages: write
       # for creating release
