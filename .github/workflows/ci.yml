@@ -21,7 +21,7 @@ jobs:
       # for pushing image
       packages: write
       # for creating release
-      id-token: write
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
